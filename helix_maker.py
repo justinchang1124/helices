@@ -22,13 +22,6 @@ radius, tilt, rotate, height, location = bpy.context.scene.cursor.location):
         if collect_name == collection.name:
             print("Error: A collection with the same name already exists.")
             return
-    # location abbreviations
-    loc_x = location[0]
-    loc_y = location[1]
-    loc_z = location[2]
-    # create the new collection
-    collection = bpy.data.collections.new(collect_name)
-    bpy.context.scene.collection.children.link(collection)
     # make a list of the names of all candidate objects
     object_names = []
     for i in range(0, len(objects)):
@@ -38,6 +31,20 @@ radius, tilt, rotate, height, location = bpy.context.scene.cursor.location):
     complement = [None] * seq_length
     for i in range(0, seq_length):
         complement[i] = comp_fun(reference[i])
+        # check for non-present elements    
+        if not ((reference[i] in object_names) and (complement[i] in object_names)):
+            print("Error: Elements of this sequence cannot be recognized.")
+            return
+    # location abbreviations
+    loc_x = location[0]
+    loc_y = location[1]
+    loc_z = location[2]
+    # create the new collection
+    collection = bpy.data.collections.new(collect_name)
+    bpy.context.scene.collection.children.link(collection)
+    # deselect all existing objects
+    for sel_obj in bpy.context.selected_objects:
+        sel_obj.select_set(False)
     # if necessary, swap the reference and complement sequences
     if comp:
         temp = reference
@@ -47,7 +54,7 @@ radius, tilt, rotate, height, location = bpy.context.scene.cursor.location):
     curHeight = 0
     for i in range(0, seq_length):
         ref_name = reference[i]
-        format_name = 'Reference_{}_{}'.format(i, ref_name)
+        format_name = '{}_R{}'.format(collect_name, i)
         ref_obj = objects[object_names.index(ref_name)]
         new_obj = ref_obj.copy()
         new_obj.data = ref_obj.data.copy()
@@ -57,6 +64,7 @@ radius, tilt, rotate, height, location = bpy.context.scene.cursor.location):
         new_obj.rotation_euler[2] = adjust - math.pi
         new_obj.location = [radius*math.cos(adjust)+loc_x, radius*math.sin(adjust)+loc_y, curHeight+loc_z]
         bpy.data.collections[collect_name].objects.link(new_obj)
+        new_obj.select_set(True)
         curHeight += height
     # if only one strand was requested, quit
     if strand < 2:
@@ -65,7 +73,7 @@ radius, tilt, rotate, height, location = bpy.context.scene.cursor.location):
     curHeight = 2*radius*math.sin(tilt)
     for i in range(0, seq_length):
         com_name = complement[i]
-        format_name = 'Complement_{}_{}'.format(i, com_name)
+        format_name = '{}_C{}'.format(collect_name, i)
         ref_obj = objects[object_names.index(com_name)]
         new_obj = ref_obj.copy()
         new_obj.data = ref_obj.data.copy()
@@ -76,6 +84,7 @@ radius, tilt, rotate, height, location = bpy.context.scene.cursor.location):
         new_obj.rotation_euler[2] = adjust - math.pi
         new_obj.location = [radius*math.cos(adjust)+loc_x, radius*math.sin(adjust)+loc_y, curHeight+loc_z]
         bpy.data.collections[collect_name].objects.link(new_obj)
+        new_obj.select_set(True)
         curHeight += height
             
 # makes a molecule
@@ -88,8 +97,8 @@ def makeMolecule(name, attachments, location = bpy.context.scene.cursor.location
     objects = bpy.data.collections["Molecules"].all_objects
     parent_obj = bpy.data.objects.new("empty", None)
     parent_obj.location = location
-    for i in range(0, len(bpy.context.selected_objects)):
-        bpy.context.selected_objects[i].select_set(False)
+    for sel_obj in bpy.context.selected_objects:
+        sel_obj.select_set(False)
     object_names = []
     for i in range(0, len(objects)):
         obj_name = objects[i].name
@@ -102,7 +111,7 @@ def makeMolecule(name, attachments, location = bpy.context.scene.cursor.location
         o = bpy.data.objects.new("empty", None)
         ref_name = attachments[i][0]
         if i > 0:
-            format_name = "Attachment_{}".format(i)
+            format_name = "{}_{}".format(name, i)
         ref_obj = objects[object_names.index(ref_name)]
         new_obj = ref_obj.copy()
         new_obj.data = ref_obj.data.copy()
@@ -133,9 +142,9 @@ def complementDNA(name):
 # complement function for RNA
 def complementRNA(name):
     if name == 'A':
-        return 'U_C'
+        return 'U'
     if name == 'U':
-        return 'A_C'
+        return 'A'
     if name == 'G':
         return 'C'
     return 'G'
@@ -145,8 +154,9 @@ def reverse(reference):
     return reference[::-1]
 
 # checks if seq is a valid sequence of nucleotides
+# Aa, Cc, Gg represent deoxyribose and ribose sugars, respectively
 def isValidSeq(seq):
-    return bool(re.match("^[aAgGtTcCuU]*$", seq))
+    return bool(re.match("^[AaCcGgTU]*$", seq))
 
 # converts seq, a string, to either DNA or RNA
 # accepted forms for DNA: d, DNA, dna
@@ -156,24 +166,22 @@ def convertType(seq, type):
         return seq.replace("U", "T")
     return seq.replace("T", "U")
 
-# van der Waals radii are used
 # H (Hydrogen): 120 pm
-h_rad = 0.120
 # O (Oxygen): 152 pm
-o_rad = 0.152
 # N (Nitrogen): 155 pm
-n_rad = 0.155
 # C (Carbon): 170 pm
-c_rad = 0.170
 # P (Phosphorus): 195 pm
+h_rad = 0.120
+o_rad = 0.152
+n_rad = 0.155
+c_rad = 0.170
 p_rad = 0.195
 
 # frequent bond angles
-tetra = 109.47 * math.pi / 180
-trigo = 120.00 * math.pi / 180
-penta = 108.00 * math.pi / 180
-o_ang = 104.45 * math.pi / 180
-oppos = 180 * math.pi / 180
+tetra = radians(109.47)
+trigo = radians(120.00)
+penta = radians(108.00)
+oppos = radians(180.00)
 
 # let's make some molecules!
 makeMolecule("Phosphate", [
@@ -185,268 +193,193 @@ makeMolecule("Phosphate", [
 
 makeMolecule("OPhosphate", [
     ["Oxygen", 0, 0, 0, 0],
-    ["Phosphate", p_rad + o_rad, o_ang, 0, trigo/4]
+    ["Phosphate", p_rad + o_rad, radians(104.45), 0, trigo/4]
 ])
 
-c_to_opho = [
+makeMolecule("CarbPho", [
+    ["Carbon", 0, 0, 0, 0],
     ["OPhosphate", c_rad + o_rad, tetra, 0, 0],
     ["Hydrogen", c_rad + h_rad, tetra, trigo, 0],
     ["Hydrogen", c_rad + h_rad, tetra, -trigo, 0]
-]
+])
 
-makeMolecule("CarbPho", c_to_opho)
-
-c_to_pen = [
+makeMolecule("CarbPen", [
     ["CarbPho", c_rad + c_rad, penta, 0, -trigo],
     ["Hydrogen", c_rad + h_rad, tetra, trigo, 0],
     ["Oxygen", c_rad + o_rad, tetra, -trigo, 0]
-]
+])
 
-makeMolecule("CarbPen", c_to_pen)
-
-pen2 = [
+makeMolecule("CarbP2", [
     ["CarbPen", c_rad + c_rad, penta, 0, trigo/2],
     ["Hydrogen", c_rad + h_rad, tetra, trigo, 0]
-]
+]) 
 
-makeMolecule("CarbP2", pen2)
-
-pen3 = [
+makeMolecule("CarbP3", [
     ["CarbP2", c_rad + c_rad, penta, 0, oppos],
     ["Hydrogen", c_rad + h_rad, tetra, trigo, 0],
     ["Hydrogen", c_rad + h_rad, tetra, -trigo, 0]
-]
+])
 
-makeMolecule("CarbP3", pen3)
-
-pen4 = [
+makeMolecule("CarbP4", [
     ["CarbP3", c_rad + c_rad, 150*math.pi/180, 0, -trigo/2],
     ["Hydrogen", c_rad + h_rad, tetra, trigo, 0]
-]
+])
 
-makeMolecule("CarbP4", pen4)
-
-methyl_attach = [
+makeMolecule("Methyl", [
     ["Hydrogen", c_rad + h_rad, tetra, 0, 0],
     ["Hydrogen", c_rad + h_rad, tetra, trigo, 0],
     ["Hydrogen", c_rad + h_rad, tetra, -trigo, 0]
-]
+])
 
-makeMolecule("Methyl", methyl_attach)
-
-nitro_attach = [
+makeMolecule("Nitro", [
     ["Hydrogen", n_rad + h_rad, trigo, 0, 0],
     ["Hydrogen", n_rad + h_rad, trigo, oppos, 0]
-]
+])
 
-makeMolecule("Nitro", nitro_attach)
-
-hc_vert = [
+makeMolecule("HC_Vert", [
     ["Hydrogen", c_rad + h_rad, oppos - penta/2, 0, 0]
-]
+])
 
-makeMolecule("HC_Vert", hc_vert)
-
-nhc_vert = [
+makeMolecule("NHC_Vert", [
     ["HC_Vert", c_rad + n_rad, penta, 0, 0]
-]
+])
 
-makeMolecule("NHC_Vert", nhc_vert)
-
-cnhc_vert = [
+makeMolecule("CNHC_Vert", [
     ["NHC_Vert", c_rad + n_rad, trigo*1.115, 0, 0]
-]
+])
 
-makeMolecule("CNHC_Vert", cnhc_vert)
-
-a_cnhc = [
+makeMolecule("A_CNHC", [
     ["CNHC_Vert", c_rad + c_rad, trigo, oppos, 0],
     ["Nitro", c_rad + n_rad, trigo, 0, 0]
-]
+])
 
-makeMolecule("A_CNHC", a_cnhc)
-
-a1n = [
+makeMolecule("A1N", [
     ["A_CNHC", n_rad + c_rad, trigo, oppos, 0]
-]
+])
 
-makeMolecule("A1N", a1n)
-
-a1cn = [
+makeMolecule("A1CN", [
     ["A1N", n_rad + c_rad, trigo, oppos, 0],
     ["Hydrogen", n_rad + h_rad, trigo, 0, 0]
-]
+])
 
-makeMolecule("A1CN", a1cn)
-
-a1ncn = [
+makeMolecule("A1NCN", [
     ["A1CN", n_rad + c_rad, trigo*1.035, oppos, 0]
-]
+])
 
-makeMolecule("A1NCN", a1ncn)
-
-a2c = [
+makeMolecule("A2C", [
     ["A1NCN", n_rad + c_rad, trigo, oppos, oppos]
-]
+])
 
-makeMolecule("A2C", a2c)
-
-hc = [
+makeMolecule("HC", [
     ["Hydrogen", c_rad + h_rad, trigo, 0, 0]
-]
+])
 
-makeMolecule("HC", hc)
-
-hcc = [
+makeMolecule("HCC", [
     ["HC", c_rad + c_rad, trigo, oppos, 0],
     ["Methyl", c_rad + c_rad, trigo, 0, trigo/2]
-]
+])
 
-makeMolecule("HCC", hcc)
-
-hccc = [
+makeMolecule("HCCC", [
     ["HCC", c_rad + c_rad, trigo, oppos, 0],
     ["Oxygen", c_rad + o_rad, trigo, 0, 0]
-]
+])
 
-makeMolecule("HCCC", hccc)
-
-hcccn = [
+makeMolecule("HCCCN", [
     ["HCCC", n_rad + c_rad, trigo, oppos, 0],
     ["Hydrogen", n_rad + h_rad, trigo, 0, 0]
-]
+])
 
-makeMolecule("HCCCN", hcccn)
-
-h2cn = [
+makeMolecule("H2CN", [
     ["HCCCN", n_rad + c_rad, trigo, oppos, 0],
     ["Hydrogen", c_rad + h_rad, trigo, 0, 0]
-]
+])
 
-makeMolecule("H2CN", h2cn)
-
-ucc = [
+makeMolecule("UCC", [
     ["HC", c_rad + c_rad, trigo, oppos, 0],
     ["Hydrogen", c_rad + h_rad, trigo, 0, trigo/2]
-]
+])
 
-makeMolecule("UCC", ucc)
-
-uccc = [
+makeMolecule("UCCC", [
     ["UCC", c_rad + c_rad, trigo, oppos, 0],
     ["Oxygen", c_rad + o_rad, trigo, 0, 0]
-]
+])
 
-makeMolecule("UCCC", uccc)
-
-ucccn = [
+makeMolecule("UCCCN", [
     ["UCCC", n_rad + c_rad, trigo, oppos, 0],
     ["Hydrogen", n_rad + h_rad, trigo, 0, 0]
-]
+])
 
-makeMolecule("UCCCN", ucccn)
-
-u2cn = [
+makeMolecule("U2CN", [
     ["UCCCN", n_rad + c_rad, trigo, oppos, 0],
     ["Hydrogen", c_rad + h_rad, trigo, 0, 0]
-]
+])
 
-makeMolecule("U2CN", u2cn)
-
-yc = [
+makeMolecule("YC", [
     ["HC", c_rad + c_rad, trigo, oppos, 0],
     ["Hydrogen", c_rad + h_rad, trigo, 0, 0]
-]
+])
 
-makeMolecule("YC", yc)
-
-ycc = [
+makeMolecule("YCC", [
     ["YC", c_rad + c_rad, trigo, oppos, 0],
     ["Nitro", c_rad + o_rad, trigo, 0, 0]
-]
+])
 
-makeMolecule("YCC", ycc)
-
-yn = [
+makeMolecule("YN", [
     ["YCC", n_rad + c_rad, trigo, oppos, 0]
-]
+])
 
-makeMolecule("YN", yn)
-
-ycn = [
+makeMolecule("YCN", [
     ["YN", n_rad + c_rad, trigo, oppos, 0],
     ["Oxygen", c_rad + o_rad, trigo, 0, 0]
-]
+])
 
-makeMolecule("YCN", ycn)
-
-g_cnhc = [
+makeMolecule("G_CNHC", [
     ["CNHC_Vert", c_rad + c_rad, trigo, oppos, 0],
     ["Oxygen", c_rad + o_rad, trigo, 0, 0]
-]
+])
 
-makeMolecule("G_CNHC", g_cnhc)
-
-g1n = [
+makeMolecule("G1N", [
     ["G_CNHC", n_rad + c_rad, trigo, oppos, 0],
     ["Hydrogen", n_rad + h_rad, trigo, 0, 0]
-]
+])
 
-makeMolecule("G1N", g1n)
-
-g1cn = [
+makeMolecule("G1CN", [
     ["G1N", c_rad + n_rad, trigo, oppos, 0],
     ["Nitro", c_rad + n_rad, trigo, 0, 0]
-]
+])
 
-makeMolecule("G1CN", g1cn)
-
-g1ncn = [
+makeMolecule("G1NCN", [
     ["G1CN", n_rad + c_rad, trigo*1.035, oppos, 0]
-]
+])
 
-makeMolecule("G1NCN", g1ncn)
-
-g2c = [
+makeMolecule("G2C", [
     ["G1NCN", n_rad + c_rad, trigo, oppos, oppos]
-]
+])
 
-makeMolecule("G2C", g2c)
-
-wholeA = [
+makeMolecule("A2", [
     ["A2C2", n_rad + c_rad, oppos/2, 0-10*math.pi/180, oppos/2],
     ["test2", n_rad + c_rad, oppos*3/4, oppos, -oppos]
-]
+])
 
-makeMolecule("A2", wholeA)
-
-wholeG = [
+makeMolecule("G2", [
     ["G2C2", n_rad + c_rad, oppos/2, 0-12*math.pi/180, oppos/2],
     ["test2", n_rad + c_rad, oppos*3/4, oppos, -oppos]
-]
+])
 
-makeMolecule("G2", wholeG)
-
-wholeT = [
+makeMolecule("T2", [
     ["H2CN2", n_rad + c_rad, oppos/2, -trigo/2+33*math.pi/180, oppos/2+oppos],
     ["test2", n_rad + c_rad, oppos*3/4, oppos, oppos]
-]
+])
 
-makeMolecule("T2", wholeT)
-
-wholeU = [
+makeMolecule("U2", [
     ["U2CN2", n_rad + c_rad, oppos/2, -trigo/2+33*math.pi/180, oppos/2+oppos],
     ["test2", n_rad + c_rad, oppos*3/4, oppos, oppos]
-]
+])
 
-makeMolecule("U2", wholeU)
-
-wholeC = [
+makeMolecule("C2", [
     ["YCN2", n_rad + c_rad, oppos/2, -trigo/2+31*math.pi/180, oppos/2+oppos],
     ["test2", n_rad + c_rad, oppos*3/4, oppos, oppos]
-]
-
-makeMolecule("C2", wholeC)
+])
 
 pen_attach = [
     ["test", 0.3 + c_rad, 0.75*math.pi, math.pi, oppos]
@@ -473,8 +406,8 @@ backbone = 'D' * len(DNA_list)
 # 1.2 degree base tilt
 # 135 degrees rotated from reference to complement
 # 3x vertical scaling to make viewing easier, 0.332 nm height/base pair
-makeHelix("Stylish DNA Test", DNA_list, complementDNA, False, False, 2, 
-2*math.pi/10.5, 1.10, math.pi/180*1.2, math.pi/180*135, 0.332*3)
+makeHelix("Stylish DNA Test 2", bpy.context.selected_objects, DNA_list, complementDNA, False, 2, 
+2*math.pi/10.5, 1.10, math.pi/180*1.2, math.pi/180*135, 0.332*3, [0,0,0])
 
 makeHelix("Stylish DNA Backbone", backbone, complementBack, False, False, 2, 
 2*math.pi/10.5, 1.15, math.pi/180*1.2, math.pi/180*135, 0.332*3, True)
