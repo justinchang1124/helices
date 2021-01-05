@@ -93,33 +93,25 @@ https://www.researchgate.net/profile/Robin_Strickstrock/publication/324056789/fi
 ## Image Gallery
 
 <img src="./Capture1.JPG"/>
-<br>
 Image 1: A collection of molecules and helices produced by makeMolecule and makeHelix.
-<br><br>
+<br><br><br>
 <img src="./Capture2.JPG"/>
-<br>
 Image 2: A collection of molecules produced by the recursive usage of makeMolecule. Columns from left to right: phosphate-sugar backbones, adenine, thymine, uracil, cytosine, guanine, colored backbones, colored bases, complete nucleotides, colored nucleotides.
-<br><br>
+<br><br><br>
 <img src="./Capture3.JPG"/>
-<br>
 Image 3: A collection of the basic building blocks from which all constructs are made. Top row from left to right: uracil, thymine, guanine, cytosine, adenine. Bottom row from left to right: phosphorus, carbon, nitrogen, oxygen, hydrogen.
-<br><br>
+<br><br><br>
 <img src="./Capture4.JPG"/>
-<br>
 Image 4: A representation of Adenine (right) pairing with Thymine (left). Just like in a real molecule, the two molecules are separate meshes because they are bound by hydrogen bonds (the blue-white-blue and red-white-blue linear motifs in the center). Note also that the phosphate-sugar backbones are pointing in opposite directions - this makes sense, as the two bases should be on opposite strands.
-<br><br>
+<br><br><br>
 <img src="./Capture5.JPG"/>
-<br>
 Image 5: Two highly accurate models of a 24-nucleotide double-stranded DNA sequence. Features include (i) 10.5 base pairs per rotation about their axis, (ii) a radius of 1 nm, (iii) right-handedness, (iv) 1.2 degrees of tilt per base relative to the horizontal, (v) 135 degrees of rotation from the reference strand to the complement strand. The phosphate-ribose backbone has been stretched by 3x for easier visualization, with each base separated by 3 * 0.332 nm.
-<br><br>
+<br><br><br>
 <img src="./Capture6.JPG"/>
-<br>
 Image 6: Four examples of how adjusting parameters can lead to a diversity of results. From left to right: increased tilt angle for dsDNA, reversed rotation per base about the z-axis for ssDNA, no rotation per base for ssRNA, realistic ssRNA.
-<br><br>
+<br><br><br>
 <img src="./Capture7.JPG"/>
-<br>
 Image 7: Two examples of basic blocks being used in place of molecules, demonstrating the applicability of makeHelix to a variety of situations. Top: dsDNA with a unique complement function that pairs each base with itself. Bottom: dsRNA with extreme exaggeration of tilt and base rotation. Though not realistic, this reflects the style of many drawings in older textbooks.
-<br><br>
+<br><br><br>
 <img src="./Capture8.JPG"/>
-<br>
 Image 8: A group of helper functions that can be used from the interface, increasing their convenience.
