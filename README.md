@@ -46,6 +46,9 @@ https://www.albert.io/blog/what-are-the-three-parts-of-a-nucleotide/.
 
 ## Gallery
 
+![](DNA_Paths.gif)
+![](Bond Rotation.gif)
+![](4 Techniques.gif)
 <br><br>
 <img src="./Capture1.JPG"/>
 Image 1: A collection of molecules and helices produced by makeMolecule and makeHelix.
