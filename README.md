@@ -82,4 +82,4 @@ Image 7: Two examples of basic blocks being used in place of molecules, demonstr
 <br><br>
 <img src="./Capture8.JPG"/>
 <br>
-Image 7: Two examples of basic blocks being used in place of molecules, demonstrating the applicability of makeHelix to a variety of situations. Top: dsDNA with a unique complement function that pairs each base with itself. Bottom: dsRNA with extreme exaggeration of tilt and base rotation. Though not realistic, this reflects the style of many drawings in older textbooks.
+Image 8: A group of helper functions that can be used from the interface, increasing their convenience.
