@@ -7,6 +7,18 @@ import math
 import re
 import mathutils
 import bpy
+from bpy.types import (
+    Operator,
+    Panel,
+    PropertyGroup,
+)
+from bpy.props import (
+    BoolProperty,
+    FloatProperty,
+    IntProperty,
+    PointerProperty,
+    StringProperty
+)
 
 # assigns rad to the math.radians function
 rad = math.radians
@@ -30,7 +42,7 @@ def deselect(objects = None):
 # toggles the visibility of all empties in the provided objects
 # objects: the objects to be toggled
 def hideEmpties(hide = True):
-    for obj in bpy.context.scene.objects:
+    for obj in bpy.context.scene.view_layers[0].objects:
         if obj.type == 'EMPTY':
             obj.hide_set(hide)
 
@@ -74,6 +86,10 @@ def joinRec(parent = None):
     # by default, join from the first selected object
     if parent == None and len(bpy.context.selected_objects) > 0:
         parent = bpy.context.selected_objects[0]
+    # if no children, ignore
+    if len(parent.children) == 0:
+        print("Error: This object has no children.")
+        return
     # deselect all objects
     deselect()
     # select the parent and all children
@@ -466,7 +482,6 @@ makeMolecule("U1", "Nitrogen", [
     ["Ribose1", n_rad + c_rad, oppos*3/4, oppos, oppos]
 ], [32,76,0])
 
-# coloring was done by hand
 makeMolecule("A2", "Nitrogen", [
     ["Adenine2", n_rad + c_rad, oppos/2, 0-10*math.pi/180, oppos/2],
     ["Deoxy2", n_rad + c_rad, oppos*3/4, oppos, -oppos]
@@ -700,6 +715,9 @@ def makeHelix(collect_name, objects, reference, comp_fun, strand, radius, tilt, 
     # create the strands
     for i in range(0, seq_length):
         rotate_name = 'Rotate_{}_{}'.format(collect_name, i)
+        if len(collection.objects[rotate_name].children) != 0:
+            print("Error: Adornment has already occurred.")
+            return
         # reference strand
         new_ref = copyRec(objects[reference[i]], None, collection)
         new_ref.name = '{}R'.format(rotate_name)
@@ -771,9 +789,9 @@ makeSkeleton("DNA5 Test", 24, 1.1, 2*math.pi/10.5, [48,120,0])
 makeHelix("DNA5 Test", molCol().objects, DNA3, identity, 2,  1.10, rad(1.2), math.pi)
 
 # clears the skeleton of t1 as a test
-clearChildren("DNA1 Test")
+#clearChildren("DNA1 Test")
 # restore the helix
-makeHelix("DNA1 Test", molCol().objects, DNA1, complementDNA, 2, 1.10, rad(1.2), rad(135))
+#makeHelix("DNA1 Test", molCol().objects, DNA1, complementDNA, 2, 1.10, rad(1.2), rad(135))
 
 # --------------------------
 # TECHNIQUE 3: BOND ROTATION
@@ -785,29 +803,32 @@ def setInterpolation(obj, inter="LINEAR"):
         for keyframe in fcurve.keyframe_points:
             keyframe.interpolation = inter
 
-# resets the animation of an object
-def resetAnimation(obj):
-    obj.animation_data_clear()
-    
-# resets the animations of a group of objects
-def resetAnimations(objects = bpy.context.selected_objects):
-    for obj in objects:
-        resetAnimation(obj)
+# checks if two object names are 'equal' in the context of a helix
+# the reason why we split by . is that Blender adds dots to duplicates
+def checkNameEqual(name1, name2):
+    return name1.split('.')[0] == name2.split('.')[0]
+
+# given an object (usually a bond) that is part of a rung
+# select the corresponding object in all other bonds
+def selectSim(object = None):
+    if object == None:
+        object = bpy.context.selected_objects[0]
+    collection = object.users_collection[0]
+    for obj in collection.objects:
+        if checkNameEqual(obj.name, object.name):
+            obj.select_set(True)
 
 # obj: the attachment or bond to be rotated about
 # n: the number of keyframes to add
 # vf: the number of frames between each rotation
-# vt: the angle of rotation, obeying right-hand rule along bond
+# vt: the angle of rotation per frame, obeying right-hand rule along bond
 # f: the initial frame number
-# t: the initial angle theta of rotation
 # inter: the interpolation type (CONSTANT, LINEAR, BEZIER) 
-def rotateBond(obj, n, vf, vt, f = 1, t = None, inter='LINEAR', subEmpty=True):
+def rotateBond(obj, n, vf, vt, f = 1, inter='LINEAR', subEmpty=True):
     # if you select a bond, make sure you go to the descendant!
     if subEmpty and obj.type == 'EMPTY':
         obj = obj.children[0]
     ref_z = obj.rotation_euler.z
-    if t != None:
-        ref_z = t
     for i in range(0, n):
         bpy.context.scene.frame_set(f)
         obj.rotation_euler.z = ref_z
@@ -820,6 +841,16 @@ def rotateBond(obj, n, vf, vt, f = 1, t = None, inter='LINEAR', subEmpty=True):
 # ---------------------------
 # TECHNIQUE 4: HELIX ROTATION
 # ---------------------------
+
+# resets the animations of an object, leaving parameters as found at the frame
+def resetAnimation(obj, default_frame = 1):
+    bpy.context.scene.frame_set(default_frame)
+    obj.animation_data_clear()
+    
+# resets the animations of a group of objects
+def resetAnimations(objects, default_frame = 1):
+    for obj in objects:
+        resetAnimation(obj, default_frame)
 
 # assigns animations to a singular object
 # Note: Not used in this project
@@ -836,7 +867,30 @@ def animateObject(obj, f, vf, pos_rot):
         obj.keyframe_insert(data_path = "rotation_euler", index = -1)
         f += vf
 
+# given a single selected bond, rotates all similar bonds in the same way    
+# n: the number of keyframes to add
+# vf: the number of frames between each rotation
+# vt: the angle of rotation per frame, obeying right-hand rule along bond
+# f: the initial frame number
+# t: the initial angle theta of rotation
+# inter: the interpolation type (CONSTANT, LINEAR, BEZIER) 
+def rotateSimilars(n, vf, vt, f = 1, inter='LINEAR', clear=False):
+    if len(bpy.context.selected_objects) != 1:
+        print("Error: multiple bonds selected.")
+        return
+    selectSim(bpy.context.selected_objects[0])
+    if clear:
+        resetAnimations(bpy.context.selected_objects)
+    for obj in bpy.context.selected_objects:
+        rotateBond(obj, n, vf, vt, f, inter, subEmpty=True)
+
 # assigns coiling rotation animations to a collection of objects comprising a helix
+# collect_name: name of the collection
+# n: the number of keyframes to add, starting at f and increasing by vf
+# vf: the number of frames between each rotation
+# vt: the angle of rotation per frame, obeying right-hand rule along bond
+# f: the initial frame number
+# t: the initial angle theta of rotation
 def coilCollection(collect_name, n, vf, vt, f = 1, inter="LINEAR", uncoil=True):
     # get all objects in the collection
     objects = bpy.data.collections[collect_name].objects
@@ -850,114 +904,171 @@ def coilCollection(collect_name, n, vf, vt, f = 1, inter="LINEAR", uncoil=True):
         num_rungs += 1
     for i in range(0, num_rungs):
         obj = objects[object_names.index('Rotate_{}_{}'.format(collect_name, i))]
-        bpy.context.scene.frame_set(f)
-        resetAnimation(obj)
-        rotateBond(obj, n, vf, vt*i, f = f, t = None, inter=inter, subEmpty=False)
+        resetAnimation(obj, f)
+        rotateBond(obj, n, vf, vt*i, f = f, inter=inter, subEmpty=False)
     if uncoil:
         for i in range(0, num_rungs):
             obj = objects[object_names.index('Rotate_{}_{}'.format(collect_name, i))]
-            rotateBond(obj, n, vf, -vt*i, f = f+(n-1)*vf, t = None, inter=inter, subEmpty=False)
+            rotateBond(obj, n, vf, -vt*i, f = f+(n-1)*vf, inter=inter, subEmpty=False)
 
-coilCollection("DNA1 Test", 5, 30, -math.pi/6)
-coilCollection("DNA2 Test", 5, 15, -math.pi/6)
+# -----------------------------
+# TECHNIQUES 3, 4 DEMONSTRATION
+# -----------------------------
 
-objects = bpy.data.collections[collect_name].objects
-
+# Example 1: Rotating / Uncoiling DNA that also follows a path
+if False: # prevent accidental activation when sourcing
+    coilCollection("DNA1 Test", 5, 30, -math.pi/8)
+    collect_name = "DNA1 Test"
+    objects = bpy.data.collections[collect_name].objects
+    for i in range(0, 24):
+        obj = objects['{}_{}'.format(collect_name, i)]
+        resetAnimation(obj)
+        for j in range(0, 21):
+            r = 15
+            angle = math.pi/60 * i + math.pi/10 * j
+            bpy.context.scene.frame_set(12*j)
+            obj.location = [r*math.cos(angle), 0, r*math.sin(angle)]
+            obj.keyframe_insert(data_path = "location", index = -1)
+            obj.rotation_euler.y = angle
+            obj.keyframe_insert(data_path = "rotation_euler", index = -1)
         
-collect_name = "DNA1 Test"
+# Example 2: DNA / RNA Rotating in Place
+if False: # prevent accidental activation when sourcing
+    coilCollection("DNA2 Test", 5, 30, -math.pi/8)
+
+
+# Example 3
+if False: # prevent accidental activation when sourcing
+coilCollection("RNA1 Test", 2, 120, -2*math.pi/10.5)
+# note: need to select a bond pointing out of phosphate (purple sphere) in RNA Test 1
+rotateSimilars(2, 120, -math.pi/6, f = 1, clear=True)
+rotateSimilars(2, 120, math.pi/6, f = 121)
+collect_name = "RNA1 Test"
 objects = bpy.data.collections[collect_name].objects
-animate_data_1 = [None] * 24
-vf = -math.pi/6
-h = 2
+for i in range(0, 24):
+    obj = objects['{}_{}'.format(collect_name, i)]
+    resetAnimation(obj, 0)
+    ref_z = obj.location.z
+    for j in range(0, 10):
+        bpy.context.scene.frame_set(12*j)
+        obj.location.z = ref_z
+        obj.keyframe_insert(data_path = "location", index = -1)
+        ref_z += 1
+    for j in range(10, 21):
+        bpy.context.scene.frame_set(12*j)
+        obj.location.z = ref_z
+        obj.keyframe_insert(data_path = "location", index = -1)
+        ref_z -= 1
+        
+# Example 4
+# select some random bonds in the duplicate adenine and make random movements
+if False: # prevent accidental activation when sourcing
+    rotateBond(bpy.context.selected_objects[0], 9, 30, math.pi)
+    resetAnimation(bpy.context.selected_objects[0])
+    bpy.context.selected_objects[0].animation_data_clear()
 
-object_names = []
-for i in range(0, len(objects)):
-    object_names.append(objects[i].name)
+# NOT USED: animateObject
+#collect_name = "DNA1 Test"
+#objects = bpy.data.collections[collect_name].objects
+#animate_data_1 = [None] * 24
+#vf = -math.pi/6
+#h = 2
 
-for rung_num in range(0, 24):
-    animate_data_1[rung_num] = [None] * 11
-    obj = objects[object_names.index('{}_{}'.format(collect_name, rung_num))]
-    print(obj)
-    rot_start = obj.rotation_euler.copy()
-    pos_start = obj.location.copy()
-    print(rot_start)
-    print(pos_start)
-    print("---")
-    for keyframe in range(0, 6): # 6 fps for 10 s
-        animate_data_1[rung_num][keyframe] = [30*keyframe, 
-        [20*math.cos(math.pi/12*keyframe), 
-        20*math.sin(math.pi/12*keyframe), 
-        pos_start[2]], rot_start.copy()]
-        pos_start[2] += h
-        rot_start[2] += vf*rung_num
-    for keyframe in range(6, 11):
-        animate_data_1[rung_num][keyframe] = [30*keyframe,
-        [20*math.cos(math.pi/12*keyframe), 
-        20*math.sin(math.pi/12*keyframe), 
-        pos_start[2]], rot_start.copy()]
-        pos_start[2] -= h
-        rot_start[2] -= vf*rung_num
+#object_names = []
+#for i in range(0, len(objects)):
+#    object_names.append(objects[i].name)
 
-animateCollection(collect_name, animate_data_1)
+#for rung_num in range(0, 24):
+#    animate_data_1[rung_num] = [None] * 11
+#    obj = objects[object_names.index('{}_{}'.format(collect_name, rung_num))]
+#    print(obj)
+#    rot_start = obj.rotation_euler.copy()
+#    pos_start = obj.location.copy()
+#    print(rot_start)
+#    print(pos_start)
+#    print("---")
+#    for keyframe in range(0, 6): # 6 fps for 10 s
+#        animate_data_1[rung_num][keyframe] = [30*keyframe, 
+#        [20*math.cos(math.pi/12*keyframe), 
+#        20*math.sin(math.pi/12*keyframe), 
+#        pos_start[2]], rot_start.copy()]
+#        pos_start[2] += h
+#        rot_start[2] += vf*rung_num
+#    for keyframe in range(6, 11):
+#        animate_data_1[rung_num][keyframe] = [30*keyframe,
+#        [20*math.cos(math.pi/12*keyframe), 
+#        20*math.sin(math.pi/12*keyframe), 
+#        pos_start[2]], rot_start.copy()]
+#        pos_start[2] -= h
+#        rot_start[2] -= vf*rung_num
 
-
-collect_name = "DNA2 Test"
-objects = bpy.data.collections[collect_name].objects
-object_names = []
-for i in range(0, len(objects)):
-    object_names.append(objects[i].name)
-
-num_rungs = 0
-while '{}_{}'.format(collect_name, num_rungs) in object_names:
-    num_rungs += 1
-
-n = 2
-vf = 30
-vt = -math.pi/3
-
-for i in range(0, num_rungs):
-    obj = objects[object_names.index('{}_{}'.format(collect_name, i))]
-    
-    test = 0
-    f = 0
-    for j in range(0, n):
-        bpy.context.scene.frame_set(f)
-        obj.rotation_euler.z = test
-        test += vt*i
-        obj.keyframe_insert(data_path = "rotation_euler", index = -1)
-        f += vf
-    for j in range(0, n+1):
-        bpy.context.scene.frame_set(f)
-        obj.rotation_euler.z = test
-        test -= vt*i
-        obj.keyframe_insert(data_path = "rotation_euler", index = -1)
-        f += vf
-
-def rotateHelix(cobjects, n, vf, vts, f = 0, inter='LINEAR'):
-    object_names = []
-    for i in range(0, len(objects)):
-        object_names.append(objects[i].name)
-    
-
-obj = bpy.context.selected_objects[0]
-rotateBond(obj, 3, 200, math.pi*10)
-
-obj.animation_data_clear()
-       
-def circularRotation(tRot, wRot, number):
-    result = [0] * number
-    for i in range(0, number):
-        result[i] = tRot + i*wRot
-    return result
-
-# -------------------------
-# TECHNIQUE 4 DEMONSTRATION
-# -------------------------
-
+#animateCollection(collect_name, animate_data_1)
 
 # ----------------
 # BONUS: INTERFACE
 # ----------------
+
+# please see hideEmpties
+class HideEmpties(Operator):
+    bl_idname = "curve.hide_empties"
+    bl_label = "HideEmpties"
+    hide: BoolProperty(
+        name="Hide",
+        description="Whether empties will be hidden by this",
+        default=True
+    )
+    def execute(self, context):
+        hideEmpties(self.hide)
+        return {'FINISHED'}
+
+# please see seleRec, copyRec, joinRec
+class OperatorRec(Operator):
+    bl_idname = "curve.operator_rec"
+    bl_label = "OperatorRec"
+    type: FloatProperty(
+        name="Type",
+        description="select=1, copy=2, join=3",
+        default=1
+    )
+    def execute(self, context):
+        if len(bpy.context.selected_objects) != 1:
+            print("Error: number of selected objects does not equal 1.")
+            return {'FINISHED'}
+        obj = bpy.context.selected_objects[0]
+        if self.type == 1:
+            seleRec(obj)
+        if self.type == 2:
+            copyRec(obj)
+        if self.type == 3:
+            joinRec(obj)
+        return {'FINISHED'}
+
+# please see resetAnimations
+class ResetAnimations(Operator):
+    bl_idname = "curve.reset_animations"
+    bl_label = "ResetAnimations"
+    def execute(self, context):
+        params = context.window_manager.chang_final_params
+        resetAnimations(bpy.context.selected_objects, params.default_frame)
+        return {'FINISHED'}
+
+# please see rotateBond
+class RotateBond(Operator):
+    bl_idname = "curve.rotate_bond"
+    bl_label = "RotateBond"
+    subEmpty: BoolProperty(
+        name="subEmpty",
+        description="Whether empties will have their children rotated.",
+        default=True
+    )
+    def execute(self, context):
+        params = context.window_manager.chang_final_params
+        if len(bpy.context.selected_objects) != 1:
+            print("Error: number of selected objects does not equal 1.")
+            return {'FINISHED'}
+        obj = bpy.context.selected_objects[0]
+        rotateBond(obj, params.n4, params.vf4, params.vt4, params.f4, "LINEAR", self.subEmpty)
+        return {'FINISHED'}
 
 class CURVE_PT_ChangFinalPanel(Panel):
     bl_label = "Nucleic Acid Techniques"
@@ -966,130 +1077,77 @@ class CURVE_PT_ChangFinalPanel(Panel):
     bl_region_type = "UI"
     bl_category = "Create"
     bl_context = "objectmode"
-    bl_options = {"DEFAULT_OPEN"}
-
+    bl_options = {"DEFAULT_CLOSED"}
     def draw(self, context):
         layout = self.layout
         wm = context.window_manager
         col = layout.column(align=True)
-
-        prop_new = col.operator("curve.ivy_gen", text="Add New Ivy", icon="OUTLINER_OB_CURVE")
-        prop_new.defaultIvy = False
-        prop_new.updateIvy = True
-
-        prop_def = col.operator("curve.ivy_gen", text="Add New Default Ivy", icon="CURVE_DATA")
-        prop_def.defaultIvy = True
-        prop_def.updateIvy = True
-
+        col.label(text="Technique Set 1")
+        prop_hide = col.operator("curve.hide_empties", text="Hide Empties")
+        prop_hide.hide = True
+        prop_show = col.operator("curve.hide_empties", text="Show Empties")
+        prop_show.hide = False
+        prop_sele = col.operator("curve.operator_rec", text="Recursive Select")
+        prop_sele.type = 1
+        prop_copy = col.operator("curve.operator_rec", text="Recursive Copy")
+        prop_copy.type = 2
+        prop_join = col.operator("curve.operator_rec", text="Recursive Join")
+        prop_join.type = 3
         col = layout.column(align=True)
-        col.label(text="Generation Settings:")
-        col.prop(wm.ivy_gen_props, "randomSeed")
-        col.prop(wm.ivy_gen_props, "maxTime")
-
+        col.label(text="Technique Set 2")
         col = layout.column(align=True)
-        col.label(text="Size Settings:")
-        col.prop(wm.ivy_gen_props, "maxIvyLength")
-        col.prop(wm.ivy_gen_props, "ivySize")
-        col.prop(wm.ivy_gen_props, "maxFloatLength")
-        col.prop(wm.ivy_gen_props, "maxAdhesionDistance")
-
+        col.label(text="Technique Set 3")
         col = layout.column(align=True)
-        col.label(text="Weight Settings:")
-        col.prop(wm.ivy_gen_props, "primaryWeight")
-        col.prop(wm.ivy_gen_props, "randomWeight")
-        col.prop(wm.ivy_gen_props, "gravityWeight")
-        col.prop(wm.ivy_gen_props, "adhesionWeight")
-
+        col.label(text="Technique Set 4")
+        prop_reset = col.operator("curve.reset_animations", text="Reset Animations")
+        col.prop(wm.chang_final_params, "default_frame")
         col = layout.column(align=True)
-        col.label(text="Branch Settings:")
-        col.prop(wm.ivy_gen_props, "branchingProbability")
-        col.prop(wm.ivy_gen_props, "ivyBranchSize")
-
-        col = layout.column(align=True)
-        col.prop(wm.ivy_gen_props, "growLeaves")
-
-        if wm.ivy_gen_props.growLeaves:
-            col = layout.column(align=True)
-            col.label(text="Leaf Settings:")
-            col.prop(wm.ivy_gen_props, "ivyLeafSize")
-            col.prop(wm.ivy_gen_props, "leafProbability")
-
+        prop_sube = col.operator("curve.rotate_bond", text="Rotate Bond")
+        prop_sube.subEmpty=True
+        prop_subn = col.operator("curve.rotate_bond", text="Rotate Group")
+        prop_subn.subEmpty=False
+        col.prop(wm.chang_final_params, "n4")
+        col.prop(wm.chang_final_params, "vf4")
+        col.prop(wm.chang_final_params, "vt4")
+        col.prop(wm.chang_final_params, "f4")
 
 class ChangFinalParams(PropertyGroup):
-    maxIvyLength: FloatProperty(
-        name="Max Ivy Length",
-        description="Maximum ivy length in Blender Units",
-        default=1.0,
-        min=0.0,
-        soft_max=3.0,
-        subtype='DISTANCE',
-        unit='LENGTH'
+    default_frame: FloatProperty(
+        name="Default Frame",
+        default=1,
+        min=0
     )
-    primaryWeight: FloatProperty(
-        name="Primary Weight",
-        description="Weighting given to the current direction",
-        default=0.5,
-        min=0.0,
-        soft_max=1.0
+    n4: FloatProperty(
+        name="Number of Intervals",
+        default=2,
+        min=0
     )
-    randomWeight: FloatProperty(
-        name="Random Weight",
-        description="Weighting given to the random direction",
-        default=0.2,
-        min=0.0,
-        soft_max=1.0
+    vf4: FloatProperty(
+        name="Frames per Interval",
+        default=30,
+        min=0
     )
-    gravityWeight: FloatProperty(
-        name="Gravity Weight",
-        description="Weighting given to the gravity direction",
-        default=1.0,
-        min=0.0,
-        soft_max=1.0
+    vt4: FloatProperty(
+        name="Angular Velocity",
+        default=0
     )
-    adhesionWeight: FloatProperty(
-        name="Adhesion Weight",
-        description="Weighting given to the adhesion direction",
-        default=0.1,
-        min=0.0,
-        soft_max=1.0
-    )
-    branchingProbability: FloatProperty(
-        name="Branching Probability",
-        description="Probability of a new branch forming",
-        default=0.05,
-        min=0.0,
-        soft_max=1.0
-    )
-    leafProbability: FloatProperty(
-        name="Leaf Probability",
-        description="Probability of a leaf forming",
-        default=0.35,
-        min=0.0,
-        soft_max=1.0
-    )
-    ivySize: FloatProperty(
-        name="Ivy Size",
-        description="The length of an ivy segment in Blender"
-                    " Units",
-        default=0.02,
-        min=0.0,
-        soft_max=1.0,
-        precision=3
-    )
-    ivyLeafSize: FloatProperty(
-        name="Ivy Leaf Size",
-        description="The size of the ivy leaves",
-        default=0.02,
-        min=0.0,
-        soft_max=0.5,
-        precision=3
-    )
-    growLeaves: BoolProperty(
-        name="Grow Leaves",
-        description="Grow leaves or not",
-        default=True
+    f4: FloatProperty(
+        name="Starting Frame",
+        default=1
     )
 
+my_classes = (
+    HideEmpties,
+    OperatorRec,
+    ResetAnimations,
+    RotateBond,
+    # parameter holder
+    ChangFinalParams,
+    # panel
+    CURVE_PT_ChangFinalPanel
+)
+
+# registers classes, a general method
 def register(classes):
     # add all classes
     for cls in classes:
@@ -1097,21 +1155,13 @@ def register(classes):
     # create a parameter holder in WindowManager
     bpy.types.WindowManager.chang_final_params = PointerProperty(type=ChangFinalParams)
 
+# unregisters classes, a general method
 def unregister(classes):
     # remove parameters from WindowManager
     del bpy.types.WindowManager.chang_final_params
     # remove all classes
-    for cls in classes:
-        bpy.utils.unregister_class(cls) 
-
-my_classes = (
-    # actual operator
-    ChangTechniques,
-    # parameter holder
-    ChangFinalParams,
-    # panel
-    CURVE_PT_ChangFinalPanel
-)
+    for cls in my_classes:
+        bpy.utils.unregister_class(cls)
      
+unregister(my_classes)
 register(my_classes)
-# unregister(my_classes)
