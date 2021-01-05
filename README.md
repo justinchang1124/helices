@@ -46,11 +46,11 @@ https://www.albert.io/blog/what-are-the-three-parts-of-a-nucleotide/.
 
 ## Gallery
 
-![]("DNA_Paths.gif")
+![](DNA_Paths.gif)
 <br><br>
-![]("Bond Rotation.gif")
+![](Bond_Rotation.gif)
 <br><br>
-![]("4 Techniques.gif")
+![](4_Techniques.gif)
 <br><br>
 <img src="./Capture1.JPG"/>
 <br>
