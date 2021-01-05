@@ -1,5 +1,12 @@
 # helices
 
+![](DNA_Paths.gif)
+<br><br>
+![](Bond_Rotation.gif)
+<br><br>
+![](4_Techniques.gif)
+<br><br>
+
 ## Background
 
 Although significant packages exist for rendering proteins in Blender, few resources exist for creating molecules without directly specifying atom and bond locations (Andrei, 2012). Two molecules highly suited to procedural modeling are deoxyribonucleic acid (DNA) and ribonucleic acid (RNA), two of the fundamental building blocks of life. In nature, DNA and RNA, known as nucleic acids, store the coded instructions that give rise to all life on Earth. As an example, human DNA could be considered as a procedural modeling algorithm that generates an entire person from a single cell with unparalleled robustness. Their structural features are worthy of visualization and study, since they are the oldest, densest, and most prevalent forms of information storage on this planet (Dong, 2020).
@@ -83,15 +90,8 @@ https://chem.libretexts.org/@api/deki/files/107106/ethane_rotation.png?revision=
 
 https://www.researchgate.net/profile/Robin_Strickstrock/publication/324056789/figure/fig5/AS:609047246024705@1522219587228/Potential-energy-curve-of-the-rotation-about-the-C-C-bond-in-ethane-Depending-on-the.png
 
+## Image Gallery
 
-## Gallery
-
-![](DNA_Paths.gif)
-<br><br>
-![](Bond_Rotation.gif)
-<br><br>
-![](4_Techniques.gif)
-<br><br>
 <img src="./Capture1.JPG"/>
 <br>
 Image 1: A collection of molecules and helices produced by makeMolecule and makeHelix.
